@@ -1,6 +1,7 @@
 'use strict';
 
 const m = require('mochainon');
+const _ = require('lodash');
 const path = require('path');
 const constraints = require('../../lib/shared/drive-constraints');
 
@@ -556,7 +557,7 @@ describe('Shared: DriveConstraints', function() {
 
   });
 
-  describe('.getDriveImageCompatibilityStatus', function() {
+  describe('.getDriveImageCompatibilityStatuses', function() {
 
     beforeEach(function() {
       if (process.platform === 'win32') {
@@ -581,52 +582,52 @@ describe('Shared: DriveConstraints', function() {
       };
     });
 
+    const expectStatusTypesAndMessagesToBe = (resultList, expectedTuples) => {
+      _.zipWith(resultList, expectedTuples, (result, [ type, message ]) => {
+        m.chai.expect(result.type).to.equal(constraints.COMPATIBILITY_STATUS_TYPES[type]);
+        m.chai.expect(result.message).to.equal(constraints.COMPATIBILITY_STATUS_MESSAGES[message]);
+      });
+    };
+
     describe('given there are no errors or warnings', () => {
 
-      it('should return OK', function() {
-        const result = constraints.getDriveImageCompatibilityStatus(this.drive, {
+      it('should return an empty list', function() {
+        const result = constraints.getDriveImageCompatibilityStatuses(this.drive, {
           path: '/mnt/disk2/rpi.img',
           size: 1000000000
         });
 
-        m.chai.expect(result).to.deep.equal({
-          type: constraints.COMPATIBILITY_STATUS_TYPES.OK,
-          message: constraints.COMPATIBILITY_STATUS_MESSAGES.OK
-        });
+        m.chai.expect(result).to.deep.equal([]);
       });
 
     });
 
     describe('given the drive contains the image', () => {
 
-      it('should return the source error', function() {
-        const result = constraints.getDriveImageCompatibilityStatus(this.drive, {
+      it('should return the contains-image error', function() {
+        const result = constraints.getDriveImageCompatibilityStatuses(this.drive, {
           path: `${this.mountpoint}${this.separator}rpi.img`,
           size: 1000000000
         });
+        const expectedTuples = [ [ 'ERROR', 'CONTAINS_IMAGE' ] ];
 
-        m.chai.expect(result).to.deep.equal({
-          type: constraints.COMPATIBILITY_STATUS_TYPES.ERROR,
-          message: constraints.COMPATIBILITY_STATUS_MESSAGES.CONTAINS_IMAGE
-        });
+        expectStatusTypesAndMessagesToBe(result, expectedTuples);
       });
 
     });
 
     describe('given the drive is a system drive', () => {
 
-      it('should return the system drive error', function() {
+      it('should return the system drive warning', function() {
         this.drive.system = true;
 
-        const result = constraints.getDriveImageCompatibilityStatus(this.drive, {
+        const result = constraints.getDriveImageCompatibilityStatuses(this.drive, {
           path: '/mnt/disk2/rpi.img',
           size: 1000000000
         });
+        const expectedTuples = [ [ 'WARNING', 'SYSTEM' ] ];
 
-        m.chai.expect(result).to.deep.equal({
-          type: constraints.COMPATIBILITY_STATUS_TYPES.WARNING,
-          message: constraints.COMPATIBILITY_STATUS_MESSAGES.SYSTEM
-        });
+        expectStatusTypesAndMessagesToBe(result, expectedTuples);
       });
 
     });
@@ -636,15 +637,13 @@ describe('Shared: DriveConstraints', function() {
       it('should return the too small error', function() {
         this.drive.size = 1000000;
 
-        const result = constraints.getDriveImageCompatibilityStatus(this.drive, {
+        const result = constraints.getDriveImageCompatibilityStatuses(this.drive, {
           path: '/mnt/disk2/rpi.img',
           size: 1000000000
         });
+        const expectedTuples = [ [ 'ERROR', 'TOO_SMALL' ] ];
 
-        m.chai.expect(result).to.deep.equal({
-          type: constraints.COMPATIBILITY_STATUS_TYPES.ERROR,
-          message: constraints.COMPATIBILITY_STATUS_MESSAGES.TOO_SMALL
-        });
+        expectStatusTypesAndMessagesToBe(result, expectedTuples);
       });
 
     });
@@ -654,15 +653,13 @@ describe('Shared: DriveConstraints', function() {
       it('should return the locked drive error', function() {
         this.drive.protected = true;
 
-        const result = constraints.getDriveImageCompatibilityStatus(this.drive, {
+        const result = constraints.getDriveImageCompatibilityStatuses(this.drive, {
           path: '/mnt/disk2/rpi.img',
           size: 1000000000
         });
+        const expectedTuples = [ [ 'ERROR', 'LOCKED' ] ];
 
-        m.chai.expect(result).to.deep.equal({
-          type: constraints.COMPATIBILITY_STATUS_TYPES.ERROR,
-          message: constraints.COMPATIBILITY_STATUS_MESSAGES.LOCKED
-        });
+        expectStatusTypesAndMessagesToBe(result, expectedTuples);
       });
 
     });
@@ -670,61 +667,38 @@ describe('Shared: DriveConstraints', function() {
     describe('given the drive is smaller than the recommended size', () => {
 
       it('should return the smaller than recommended size warning', function() {
-        const result = constraints.getDriveImageCompatibilityStatus(this.drive, {
+        const result = constraints.getDriveImageCompatibilityStatuses(this.drive, {
           path: '/mnt/disk2/rpi.img',
           size: 1000000000,
           recommendedDriveSize: 5000000000
         });
+        const expectedTuples = [ [ 'WARNING', 'SIZE_NOT_RECOMMENDED' ] ];
 
-        m.chai.expect(result).to.deep.equal({
-          type: constraints.COMPATIBILITY_STATUS_TYPES.WARNING,
-          message: constraints.COMPATIBILITY_STATUS_MESSAGES.SIZE_NOT_RECOMMENDED
-        });
+        expectStatusTypesAndMessagesToBe(result, expectedTuples);
       });
 
     });
 
     describe('given the image is null', () => {
 
-      it('should return OK', function() {
-        const result = constraints.getDriveImageCompatibilityStatus(this.drive, null);
+      it('should return an empty list', function() {
+        const result = constraints.getDriveImageCompatibilityStatuses(this.drive, null);
 
-        m.chai.expect(result).to.deep.equal({
-          type: constraints.COMPATIBILITY_STATUS_TYPES.OK,
-          message: constraints.COMPATIBILITY_STATUS_MESSAGES.OK
-        });
+        m.chai.expect(result).to.deep.equal([]);
       });
 
     });
 
     describe('given the drive is null', () => {
 
-      it('should return OK', function() {
-        const result = constraints.getDriveImageCompatibilityStatus(null, {
+      it('should return an empty list', function() {
+        const result = constraints.getDriveImageCompatibilityStatuses(null, {
           path: '/mnt/disk2/rpi.img',
           size: 1000000000,
           recommendedDriveSize: 2000000000
         });
 
-        m.chai.expect(result).to.deep.equal({
-          type: constraints.COMPATIBILITY_STATUS_TYPES.OK,
-          message: constraints.COMPATIBILITY_STATUS_MESSAGES.OK
-        });
-      });
-
-    });
-
-    describe('given a system drive and image is null', () => {
-
-      it('should return system drive error', function() {
-        this.drive.system = true;
-
-        const result = constraints.getDriveImageCompatibilityStatus(this.drive, null);
-
-        m.chai.expect(result).to.deep.equal({
-          type: constraints.COMPATIBILITY_STATUS_TYPES.WARNING,
-          message: constraints.COMPATIBILITY_STATUS_MESSAGES.SYSTEM
-        });
+        m.chai.expect(result).to.deep.equal([]);
       });
 
     });
@@ -734,85 +708,86 @@ describe('Shared: DriveConstraints', function() {
       it('should return locked drive error', function() {
         this.drive.protected = true;
 
-        const result = constraints.getDriveImageCompatibilityStatus(this.drive, null);
+        const result = constraints.getDriveImageCompatibilityStatuses(this.drive, null);
+        const expectedTuples = [ [ 'ERROR', 'LOCKED' ] ];
 
-        m.chai.expect(result).to.deep.equal({
-          type: constraints.COMPATIBILITY_STATUS_TYPES.ERROR,
-          message: constraints.COMPATIBILITY_STATUS_MESSAGES.LOCKED
-        });
+        expectStatusTypesAndMessagesToBe(result, expectedTuples);
       });
 
     });
 
-    describe('given the drive contains the image and is a system drive', () => {
+    describe('given a system drive and image is null', () => {
 
-      it('should return the source drive error by precedence', function() {
+      it('should return system drive warning', function() {
         this.drive.system = true;
 
-        const result = constraints.getDriveImageCompatibilityStatus(this.drive, {
+        const result = constraints.getDriveImageCompatibilityStatuses(this.drive, null);
+        const expectedTuples = [ [ 'WARNING', 'SYSTEM' ] ];
+
+        expectStatusTypesAndMessagesToBe(result, expectedTuples);
+      });
+
+    });
+
+    describe('given the drive contains the image and the drive is locked', () => {
+
+      it('should return the contains-image drive error by precedence', function() {
+        const result = constraints.getDriveImageCompatibilityStatuses(this.drive, {
           path: `${this.mountpoint}${this.separator}rpi.img`,
-          size: 1000000000
+          size: 5000000000
         });
+        const expectedTuples = [ [ 'ERROR', 'CONTAINS_IMAGE' ] ];
 
-        m.chai.expect(result).to.deep.equal({
-          type: constraints.COMPATIBILITY_STATUS_TYPES.ERROR,
-          message: constraints.COMPATIBILITY_STATUS_MESSAGES.CONTAINS_IMAGE
-        });
+        expectStatusTypesAndMessagesToBe(result, expectedTuples);
       });
 
     });
 
-    describe('given a system and too small drive', () => {
+    describe('given a locked and too small drive', () => {
 
-      it('should return the system drive error by precedence', function() {
+      it('should return the locked error by precedence', function() {
+        this.drive.protected = true;
+
+        const result = constraints.getDriveImageCompatibilityStatuses(this.drive, {
+          path: '/mnt/disk2/rpi.img',
+          size: 5000000000
+        });
+        const expectedTuples = [ [ 'ERROR', 'LOCKED' ] ];
+
+        expectStatusTypesAndMessagesToBe(result, expectedTuples);
+      });
+
+    });
+
+    describe('given a too small and system drive', () => {
+
+      it('should return the too small drive error by precedence', function() {
         this.drive.system = true;
 
-        const result = constraints.getDriveImageCompatibilityStatus(this.drive, {
+        const result = constraints.getDriveImageCompatibilityStatuses(this.drive, {
           path: '/mnt/disk2/rpi.img',
           size: 5000000000
         });
+        const expectedTuples = [ [ 'ERROR', 'TOO_SMALL' ] ];
 
-        m.chai.expect(result).to.deep.equal({
-          type: constraints.COMPATIBILITY_STATUS_TYPES.WARNING,
-          message: constraints.COMPATIBILITY_STATUS_MESSAGES.SYSTEM
-        });
+        expectStatusTypesAndMessagesToBe(result, expectedTuples);
       });
 
     });
 
-    describe('given a too small and locked drive', () => {
+    describe('given a system drive and not recommended drive size', () => {
 
-      it('should return the too small error by precedence', function() {
-        this.drive.protected = true;
+      it('should return both warnings', function() {
+        this.drive.system = true;
 
-        const result = constraints.getDriveImageCompatibilityStatus(this.drive, {
-          path: '/mnt/disk2/rpi.img',
-          size: 5000000000
-        });
-
-        m.chai.expect(result).to.deep.equal({
-          type: constraints.COMPATIBILITY_STATUS_TYPES.ERROR,
-          message: constraints.COMPATIBILITY_STATUS_MESSAGES.TOO_SMALL
-        });
-      });
-
-    });
-
-    describe('given a locked drive and not recommended drive size', () => {
-
-      it('should return the locked drive error by precedence', function() {
-        this.drive.protected = true;
-
-        const result = constraints.getDriveImageCompatibilityStatus(this.drive, {
+        const result = constraints.getDriveImageCompatibilityStatuses(this.drive, {
           path: '/mnt/disk2/rpi.img',
           size: 1000000000,
           recommendedDriveSize: 5000000000
         });
+        const expectedTuples = [ [ 'WARNING', 'SYSTEM' ], [ 'WARNING', 'SIZE_NOT_RECOMMENDED' ] ];
 
-        m.chai.expect(result).to.deep.equal({
-          type: constraints.COMPATIBILITY_STATUS_TYPES.ERROR,
-          message: constraints.COMPATIBILITY_STATUS_MESSAGES.LOCKED
-        });
+        expectStatusTypesAndMessagesToBe(result, expectedTuples);
       });
 
     });
